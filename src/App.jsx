@@ -1,0 +1,1 @@
+export default function App() { return <div>BauVision25 geladen ✅</div>; }
