@@ -1,6 +1,6 @@
 
 {
-  "name": "bauvision25-firebase-new",
+  "name": "bauvision25-expanded",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -11,7 +11,8 @@
   "dependencies": {
     "firebase": "^10.7.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "jspdf": "^2.5.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.1.0",
