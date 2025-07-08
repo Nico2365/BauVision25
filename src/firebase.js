@@ -9,8 +9,8 @@ const firebaseConfig = {
   projectId: "bau-vision25",
   storageBucket: "bau-vision25.firebasestorage.app",
   messagingSenderId: "399020543777",
-  appId: "1:399020543777:web:a9fa20f03007cbf0043860",
-  measurementId: "G-138WN9NWSH"
+  appId: "1:399020543777:web:7011999a6514a2c4043860",
+  measurementId: "G-4E4XP60LWY"
 };
 
 const app = initializeApp(firebaseConfig);
