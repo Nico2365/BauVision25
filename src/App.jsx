@@ -42,7 +42,7 @@ export default function App() {
 
   if (!user) {
     return (
-      <div style={{ padding: 40 }}>
+      <div style={{ padding: 40, backgroundColor: "#e6ffe6", minHeight: "100vh" }}>
         <h2>Login zur BauVision25</h2>
         <button onClick={login}>Einloggen</button>
       </div>
