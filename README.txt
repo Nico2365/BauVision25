@@ -1,1 +1,0 @@
-Vercel-ready BauVision25 App mit Vite in dependencies.
