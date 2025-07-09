@@ -1,199 +1,132 @@
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { auth, db } from "./firebase";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut,
-} from "firebase/auth";
+import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import {
   collection,
+  addDoc,
   query,
   where,
   getDocs,
-  addDoc,
+  onSnapshot,
   doc,
   updateDoc,
-  onSnapshot,
+  setDoc
 } from "firebase/firestore";
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [pass, setPass] = useState("");
   const [projects, setProjects] = useState([]);
-  const [projectName, setProjectName] = useState("");
-  const [activeProject, setActiveProject] = useState(null);
-  const [error, setError] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const fileInputRef = useRef();
+  const [newProject, setNewProject] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [images, setImages] = useState([]);
+  const [uploadList, setUploadList] = useState([]);
 
   useEffect(() => {
-    onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        const q = query(collection(db, "projects"), where("uid", "==", currentUser.uid));
-        onSnapshot(q, (snapshot) => {
-          const list = [];
-          snapshot.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
-          setProjects(list);
-        });
-      } else {
-        setUser(null);
-        setProjects([]);
+    onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u);
+        loadProjects(u.uid);
       }
     });
   }, []);
 
-  const login = () => {
-    signInWithEmailAndPassword(auth, email, password).catch((err) =>
-      setError(err.message)
-    );
+  const loadProjects = async (uid) => {
+    const q = query(collection(db, "projects"), where("uid", "==", uid));
+    onSnapshot(q, (snapshot) => {
+      setProjects(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
   };
 
-  const register = () => {
-    createUserWithEmailAndPassword(auth, email, password).catch((err) =>
-      setError(err.message)
-    );
+  const handleLogin = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (e) {
+      alert("Login fehlgeschlagen: " + e.message);
+    }
   };
 
-  const logout = () => signOut(auth);
-
-  const addProject = async () => {
-    if (!projectName.trim()) return;
-    const q = query(
-      collection(db, "projects"),
-      where("uid", "==", user.uid),
-      where("name", "==", projectName.trim())
-    );
-    const existing = await getDocs(q);
-    if (!existing.empty) {
-      setError("❌ Projektname existiert bereits.");
+  const createProject = async () => {
+    if (!newProject) return;
+    const exists = projects.find((p) => p.name === newProject);
+    if (exists) {
+      alert("❌ Projektname bereits vorhanden");
       return;
     }
     await addDoc(collection(db, "projects"), {
       uid: user.uid,
-      name: projectName.trim(),
-      images: [],
+      name: newProject,
+      images: []
     });
-    setProjectName("");
-    setError("");
+    setNewProject("");
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setSelectedFiles([...selectedFiles, ...Array.from(e.dataTransfer.files)]);
-  };
+  const uploadImages = async () => {
+    if (!selected || uploadList.length === 0) return;
+    const projectRef = doc(db, "projects", selected.id);
 
-  const handleFilesChange = (e) => {
-    setSelectedFiles([...selectedFiles, ...Array.from(e.target.files)]);
-  };
+    const base64Images = await Promise.all(
+      uploadList.map((file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+      })
+    );
 
-  const uploadAllImages = async () => {
-    if (!activeProject || selectedFiles.length === 0) return;
-
-    const newImages = [];
-
-    for (const file of selectedFiles) {
-      const reader = new FileReader();
-      const base64 = await new Promise((resolve) => {
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
-      newImages.push(base64);
-    }
-
-    const updatedImages = [...(activeProject.images || []), ...newImages];
-
-    await updateDoc(doc(db, "projects", activeProject.id), {
-      images: updatedImages,
-    });
-
-    setActiveProject({ ...activeProject, images: updatedImages });
-    setSelectedFiles([]);
+    const updatedImages = [...(selected.images || []), ...base64Images];
+    await updateDoc(projectRef, { images: updatedImages });
+    setUploadList([]);
   };
 
   if (!user) {
     return (
-      <div style={{ maxWidth: 400, margin: "40px auto", background: "#f0fdf4", padding: 20, borderRadius: 12 }}>
-        <h2>BauVision25 Login</h2>
+      <div style={{ padding: 40 }}>
+        <h2>BauVision25 – Login</h2>
         <input placeholder="E-Mail" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input placeholder="Passwort" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button onClick={login}>Einloggen</button>
-        <button onClick={register}>Registrieren</button>
-        {error && <p style={{ color: "red" }}>{error}</p>}
-      </div>
-    );
-  }
-
-  if (activeProject) {
-    return (
-      <div style={{ maxWidth: 800, margin: "30px auto", background: "#ecfdf5", padding: 20, borderRadius: 12 }}>
-        <h2>📁 Projekt: {activeProject.name}</h2>
-        <button onClick={() => setActiveProject(null)}>⬅️ Zurück zur Übersicht</button>
-
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          style={{
-            marginTop: 20,
-            padding: 30,
-            border: "2px dashed #4ade80",
-            borderRadius: 10,
-            textAlign: "center",
-            background: "#f0fdf4",
-          }}
-        >
-          <p>📥 Bilder hierher ziehen oder auswählen</p>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            ref={fileInputRef}
-            style={{ display: "none" }}
-            onChange={handleFilesChange}
-          />
-          <button onClick={() => fileInputRef.current.click()}>Dateien auswählen</button>
-        </div>
-
-        <button style={{ marginTop: 10 }} onClick={uploadAllImages}>📤 Hochladen ({selectedFiles.length})</button>
-
-        <p>{activeProject.images?.length || 0} Bild(er) gespeichert</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
-          {(activeProject.images || []).map((img, i) => (
-            <img
-              key={i}
-              src={img}
-              alt={`Bild ${i + 1}`}
-              style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 8 }}
-            />
-          ))}
-        </div>
+        <br />
+        <input type="password" placeholder="Passwort" value={pass} onChange={(e) => setPass(e.target.value)} />
+        <br />
+        <button onClick={handleLogin}>Einloggen</button>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: "30px auto", background: "#ecfdf5", padding: 20, borderRadius: 12 }}>
-      <h1>🛠️ BauVision25</h1>
-      <p>👤 Angemeldet als: {user.email}</p>
-      <button onClick={logout}>🚪 Abmelden</button>
-      <hr />
-      <input
-        placeholder="Neues Projekt"
-        value={projectName}
-        onChange={(e) => setProjectName(e.target.value)}
-      />
-      <button onClick={addProject}>Projekt hinzufügen</button>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <h3>📋 Deine Projekte</h3>
-      {projects.map((p) => (
-        <div key={p.id} style={{ margin: "10px 0", padding: 10, background: "#d1fae5", borderRadius: 6 }}>
-          <span>{p.name}</span>
-          <button style={{ marginLeft: 10 }} onClick={() => setActiveProject(p)}>Öffnen</button>
+    <div style={{ padding: 40 }}>
+      <h2>Willkommen bei BauVision25</h2>
+
+      <div>
+        <h3>📁 Neues Projekt anlegen</h3>
+        <input value={newProject} onChange={(e) => setNewProject(e.target.value)} placeholder="Projektname" />
+        <button onClick={createProject}>Hinzufügen</button>
+      </div>
+
+      <div>
+        <h3>🗂️ Deine Projekte</h3>
+        {projects.map((p) => (
+          <button key={p.id} onClick={() => setSelected(p)} style={{ marginRight: 8 }}>
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      {selected && (
+        <div style={{ marginTop: 20 }}>
+          <h3>📸 Bilder zu {selected.name}</h3>
+          <input type="file" multiple accept="image/*" onChange={(e) => setUploadList([...e.target.files])} />
+          <br />
+          <button onClick={uploadImages}>📤 Hochladen ({uploadList.length})</button>
+          <div style={{ marginTop: 10 }}>
+            {selected.images && selected.images.map((img, i) => (
+              <img key={i} src={img} alt="" width="120" style={{ margin: 4, borderRadius: 4 }} />
+            ))}
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
