@@ -1,1 +1,1 @@
-BauVision25 – Vite-ready Version für Vercel Deployment.
+Vercel-ready BauVision25 App mit Vite in dependencies.
