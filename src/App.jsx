@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { auth, db } from "./firebase";
 import {
   signInWithEmailAndPassword,
@@ -25,8 +25,9 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [projectName, setProjectName] = useState("");
   const [activeProject, setActiveProject] = useState(null);
-  const [image, setImage] = useState(null);
   const [error, setError] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const fileInputRef = useRef();
 
   useEffect(() => {
     onAuthStateChanged(auth, async (currentUser) => {
@@ -80,22 +81,37 @@ export default function App() {
     setError("");
   };
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !activeProject) return;
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setSelectedFiles([...selectedFiles, ...Array.from(e.dataTransfer.files)]);
+  };
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result;
-      const updatedImages = [...(activeProject.images || []), base64];
+  const handleFilesChange = (e) => {
+    setSelectedFiles([...selectedFiles, ...Array.from(e.target.files)]);
+  };
 
-      await updateDoc(doc(db, "projects", activeProject.id), {
-        images: updatedImages,
+  const uploadAllImages = async () => {
+    if (!activeProject || selectedFiles.length === 0) return;
+
+    const newImages = [];
+
+    for (const file of selectedFiles) {
+      const reader = new FileReader();
+      const base64 = await new Promise((resolve) => {
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(file);
       });
+      newImages.push(base64);
+    }
 
-      setActiveProject({ ...activeProject, images: updatedImages });
-    };
-    reader.readAsDataURL(file);
+    const updatedImages = [...(activeProject.images || []), ...newImages];
+
+    await updateDoc(doc(db, "projects", activeProject.id), {
+      images: updatedImages,
+    });
+
+    setActiveProject({ ...activeProject, images: updatedImages });
+    setSelectedFiles([]);
   };
 
   if (!user) {
@@ -116,7 +132,33 @@ export default function App() {
       <div style={{ maxWidth: 800, margin: "30px auto", background: "#ecfdf5", padding: 20, borderRadius: 12 }}>
         <h2>📁 Projekt: {activeProject.name}</h2>
         <button onClick={() => setActiveProject(null)}>⬅️ Zurück zur Übersicht</button>
-        <input type="file" accept="image/*" onChange={handleImageUpload} />
+
+        <div
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          style={{
+            marginTop: 20,
+            padding: 30,
+            border: "2px dashed #4ade80",
+            borderRadius: 10,
+            textAlign: "center",
+            background: "#f0fdf4",
+          }}
+        >
+          <p>📥 Bilder hierher ziehen oder auswählen</p>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            onChange={handleFilesChange}
+          />
+          <button onClick={() => fileInputRef.current.click()}>Dateien auswählen</button>
+        </div>
+
+        <button style={{ marginTop: 10 }} onClick={uploadAllImages}>📤 Hochladen ({selectedFiles.length})</button>
+
         <p>{activeProject.images?.length || 0} Bild(er) gespeichert</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
           {(activeProject.images || []).map((img, i) => (
