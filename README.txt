@@ -1,1 +1,1 @@
-Dies ist das BauVision25-Final-Projekt. Die vollständige App wird hier gespeichert.
+BauVision25 – Vite-ready Version für Vercel Deployment.
